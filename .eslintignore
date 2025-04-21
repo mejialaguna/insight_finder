@@ -1,0 +1,4 @@
+.next/
+eslint.config.mjs
+next.config.mjs
+postcss.config.mjs

@@ -1,7 +1,14 @@
-import SideBar from '@/components/sideBar';
+import Main from '@/components/main';
 
-export default function Home() {
+interface HomePageProp {
+  searchParams: {
+    conversationId?: string;
+  };
+}
+
+export default async function Home({searchParams}:HomePageProp) {
+  const { conversationId } = await searchParams;
   return (
-    <SideBar />
+    <Main conversationId={conversationId} />
   );
 }

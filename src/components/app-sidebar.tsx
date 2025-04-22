@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 
 import { CollapsedTooltip } from './collapsed-tooltip';
 import { SearchForm } from './search-form';
+import { useNewConversationFeature } from '@/store';
 
 // Define the conversation type for better type safety
 interface Conversation {
@@ -63,6 +64,7 @@ const initialData: AppData = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { setShouldShowNewConversation } = useNewConversationFeature();
   const { state, setOpen } = useSidebar();
   const [data, setData] = React.useState<AppData>(initialData);
 
@@ -77,6 +79,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ...prev,
       conversations: [newConversation, ...prev.conversations],
     }));
+    setShouldShowNewConversation(true);
   };
 
   return (

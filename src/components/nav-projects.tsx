@@ -69,7 +69,7 @@ export function NavProjects({
               return (
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton tooltip={item.name}>
-                    <Icon className="w-4 h-4" />4
+                    <Icon className="w-4 h-4" />
                     <span>{item.name}</span>
                   </SidebarMenuButton>
                   <DropdownMenu>

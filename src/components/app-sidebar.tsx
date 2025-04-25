@@ -84,7 +84,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible='icon' {...props}>
-      <SidebarHeader className='items-center'>
+      <SidebarHeader className='items-center h-16 dimelo border-b'>
         <div className='flex items-center px-4 py-2 gap-2'>
           <GalleryVerticalEnd className='h-5 w-5' />
           {state !== 'collapsed' && (
@@ -98,7 +98,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           )}
         </div>
       </SidebarHeader>
-      <Separator className='mt-0.5 mb-3' />
       <SidebarContent>
         <CollapsedTooltip
           tooltip='New Conversation'
@@ -107,7 +106,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <Button
             variant='outline'
             size='sm'
-            className='flex items-center gap-2 mx-2'
+            className='flex items-center gap-2 mx-2 mt-4'
             onClick={handleAddConversation}
           >
             <Plus className='h-4 w-4' />

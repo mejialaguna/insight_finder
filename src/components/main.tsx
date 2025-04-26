@@ -12,8 +12,8 @@ interface MainPageProp {
 
 export default async function Main({conversationId}:MainPageProp) {
   return (
-    <SidebarProvider >
-      <AppSidebar />
+    <SidebarProvider>
+      <AppSidebar conversationId={conversationId}/>
       <SidebarInset>
         <Header />
         <FeatureArea conversationId={conversationId}/>

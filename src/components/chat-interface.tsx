@@ -1,8 +1,4 @@
-'use client';
-import { Send } from 'lucide-react';
-
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { ChatForm } from './chat-form';
 
 export function ChatInterface() {
   return (
@@ -32,17 +28,7 @@ export function ChatInterface() {
           </div>
         </div>
       </div>
-
-      <form className="flex space-x-2 mt-auto">
-        <Input
-          placeholder="Ask about news or search for articles..."
-          className="flex-1"
-        />
-        <Button type="submit">
-          <Send className="h-4 w-4" />
-          <span className="sr-only">Send</span>
-        </Button>
-      </form>
+      <ChatForm />
     </div>
   );
 }

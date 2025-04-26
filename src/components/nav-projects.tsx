@@ -10,12 +10,11 @@ import {
   Utensils,
   type LucideIcon,
 } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
-import {
-  Collapsible,
-  CollapsibleContent,
-} from '@/components/ui/collapsible';
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +49,15 @@ export function NavProjects({
 }) {
   const { isMobile } = useSidebar();
   const [isOpen, setIsOpen] = useState(true);
+  const pathName = usePathname();
+  const searchParams = useSearchParams();
+
+  const createPageUrl = (conversationId: number | string) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    params.set('conversationId', conversationId.toString());
+    return `${pathName}?${params.toString()}`;
+  };
 
   return (
     <SidebarGroup>
@@ -62,7 +70,7 @@ export function NavProjects({
           `}
         >
           <SidebarMenu>
-            {projects.map((item) => {
+            {projects.map((item, idx) => {
               const normalizedType = item.type?.toLowerCase() ?? 'default';
               const Icon = typeToIcon[normalizedType] ?? typeToIcon.default;
 
@@ -70,7 +78,9 @@ export function NavProjects({
                 <SidebarMenuItem key={item.name}>
                   <SidebarMenuButton tooltip={item.name}>
                     <Icon className="w-4 h-4" />
-                    <span>{item.name}</span>
+                    <Link href={createPageUrl(`${idx}-${item.name}`)}>
+                      {item.name}
+                    </Link>
                   </SidebarMenuButton>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

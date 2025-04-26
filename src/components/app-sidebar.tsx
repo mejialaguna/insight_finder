@@ -1,12 +1,12 @@
 'use client';
 
 import { GalleryVerticalEnd, Plus } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
 
 import { NavProjects } from '@/components/nav-projects';
 import { NavUser } from '@/components/nav-user';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import {
   Sidebar,
   SidebarContent,
@@ -16,10 +16,10 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
+import { useNewConversationFeature } from '@/store';
 
 import { CollapsedTooltip } from './collapsed-tooltip';
 import { SearchForm } from './search-form';
-import { useNewConversationFeature } from '@/store';
 
 // Define the conversation type for better type safety
 interface Conversation {
@@ -63,12 +63,19 @@ const initialData: AppData = {
   ],
 };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+  conversationId,
+  ...props
+}: React.ComponentProps<typeof Sidebar> & { conversationId?: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const { setShouldShowNewConversation } = useNewConversationFeature();
   const { state, setOpen } = useSidebar();
   const [data, setData] = React.useState<AppData>(initialData);
 
   const handleAddConversation = () => {
+    if (conversationId) router.replace(pathname);
+
     const newConversation: Conversation = {
       name: `New Conversation ${data.conversations.length + 1}`,
       time: 'today',
@@ -83,43 +90,39 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   };
 
   return (
-    <Sidebar collapsible='icon' {...props}>
-      <SidebarHeader className='items-center h-16 dimelo border-b'>
-        <div className='flex items-center px-4 py-2 gap-2'>
-          <GalleryVerticalEnd className='h-5 w-5' />
-          {state !== 'collapsed' && (
-            <span
-              className={cn(
-                'text-lg font-semibold transition-opacity duration-200'
-              )}
-            >
-              Insight Finder
-            </span>
+    <Sidebar collapsible="icon" {...props}>
+      <SidebarHeader className="flex flex-row justify-center items-center h-16 border-b">
+        <GalleryVerticalEnd className="h-5 w-5" />
+        <span
+          className={cn(
+            `text-lg font-semibold transition-opacity duration-200 ${state !== 'collapsed' ? 'inline-flex' : 'hidden'}`
           )}
-        </div>
+        >
+          Insight Finder
+        </span>
       </SidebarHeader>
       <SidebarContent>
         <CollapsedTooltip
-          tooltip='New Conversation'
+          tooltip="New Conversation"
           isCollapsed={state === 'collapsed'}
         >
           <Button
-            variant='outline'
-            size='sm'
-            className='flex items-center gap-2 mx-2 mt-4'
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2 mx-2 mt-4"
             onClick={handleAddConversation}
           >
-            <Plus className='h-4 w-4' />
+            <Plus className="h-4 w-4" />
             {state !== 'collapsed' && 'New Conversation'}
           </Button>
         </CollapsedTooltip>
         <CollapsedTooltip
-          tooltip='search previous topics'
+          tooltip="search previous topics"
           isCollapsed={state === 'collapsed'}
         >
           <SearchForm
             isCollapsed={state === 'collapsed'}
-            className='pt-2.5'
+            className="pt-2.5"
             setOpen={setOpen}
           />
         </CollapsedTooltip>

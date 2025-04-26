@@ -1,6 +1,7 @@
 'use client';
 import { useNewConversationFeature } from '@/store';
 
+import { ChatForm } from './chat-form';
 import { ChatInterface } from './chat-interface';
 
 interface FeatureAreaProp {
@@ -16,7 +17,11 @@ export default function FeatureArea({ conversationId }: FeatureAreaProp) {
       ) : (
         <>
           <div className="min-h-[100vh] flex-1 rounded-xl bg-muted/50 md:min-h-min" />
-          <div className="min-h-[100vh] flex-1 rounded-xl bg-muted/50 md:min-h-min" />
+          <div className="min-h-[100vh] flex flex-1 rounded-xl bg-muted/50 md:min-h-min flex-col" >
+          {/* <Articles /> */}
+          <h1>Hello</h1>
+          <ChatForm className='p-4'/>
+          </div>
         </>
       )}
     </div>

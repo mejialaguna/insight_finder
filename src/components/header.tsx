@@ -21,7 +21,7 @@ export default function Header() {
           </BreadcrumbItem>
           <BreadcrumbSeparator className="hidden md:block" />
           <BreadcrumbItem>
-            <BreadcrumbPage>Data Fetching</BreadcrumbPage>
+            <BreadcrumbPage>New conversation</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>

@@ -5,16 +5,18 @@ import { ArticleList } from './article-list';
 import { ChatForm } from './chat-form';
 import { ChatInterface } from './chat-interface';
 
+import type { Article } from '@/interfaces';
+
 interface FeatureAreaProp {
   conversationId?: string;
-  articles: any;
+  articles: Article[];
 }
 
 export default function FeatureArea({ conversationId, articles }: FeatureAreaProp) {
   const { shouldShowNewConversation } = useNewConversationFeature();
 
   return (
-    <div className="flex flex-col h-[92vh] gap-4 px-4 pt-4"> {/* h-screen to lock it to the viewport height */}
+    <div className="flex flex-col h-[92vh] gap-4 px-4 pt-4"> 
       {shouldShowNewConversation && !conversationId ? (
         <ChatInterface />
       ) : (

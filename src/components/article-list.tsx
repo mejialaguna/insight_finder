@@ -1,4 +1,5 @@
 import { ExternalLink } from 'lucide-react';
+import Link from 'next/link';
 
 import { Badge } from '@/components/ui/badge';
 import {
@@ -10,12 +11,11 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { formatDistanceToNow } from '@/lib/utils';
-import Link from 'next/link';
 
+import type { Article } from '@/interfaces';
 
 interface ArticleListProps {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  articles: any;
+  articles: Article[];
 }
 
 export function ArticleList({ articles }: ArticleListProps) {
@@ -31,23 +31,23 @@ export function ArticleList({ articles }: ArticleListProps) {
 
   return (
     <div className="p-4 space-y-4">
-      {articles.map((article) => (
-        <Card key={article.id} className="border bg-card text-card-foreground">
+      {articles.map((article, idx) => (
+        <Card key={`${article?.isoDate}-${idx}`} className="border bg-card text-card-foreground gap-2">
           <CardHeader className="">
             <div className="flex justify-between items-start">
-              <CardTitle className="text-base">{article.title}</CardTitle>
-              <Badge variant="outline">{article.articleType}</Badge>
+              <CardTitle className="text-base">{article?.title}</CardTitle>
+              <Badge variant="outline">{article?.articleType}</Badge>
             </div>
             <CardDescription className="text-xs">
-              {formatDistanceToNow(new Date(article.publishDate))}
+              {formatDistanceToNow(new Date(article?.pubDate || ''))}
             </CardDescription>
           </CardHeader>
           <CardContent className="pb-2">
-            <p className="text-sm">{article.description}</p>
+            <p className="text-sm">{article?.content}</p>
           </CardContent>
           <CardFooter className="pt-0 text-blue-500 font-semibold">
             <Link
-              href={article.link}
+              href={article?.link || ''}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs flex items-center hover:underline"

@@ -6,14 +6,15 @@ interface PageProps {
   searchParams?: any;
 }
 
-export default function Home(props: PageProps) {
+export default async function Home(props: PageProps) {
   // Extract searchParams which might be a Promise or direct object
-  const searchParams = props.searchParams || {};
-  
-  const conversationId =
-    typeof searchParams.conversationId === 'string'
-      ? searchParams.conversationId
-      : undefined;
+  // In Next.js 15.3, searchParams needs to be awaited before accessing its properties
+  const awaitedSearchParams = await (props.searchParams || {});
+
+  // Now access the properties from the awaited object
+  const conversationId = typeof awaitedSearchParams.conversationId === 'string' 
+    ? awaitedSearchParams.conversationId 
+    : undefined;
 
   return <Main conversationId={conversationId} />;
 }

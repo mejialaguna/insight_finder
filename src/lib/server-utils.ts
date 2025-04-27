@@ -1,5 +1,6 @@
 'use server';
 
+import cliProgress from 'cli-progress';
 import Parser from 'rss-parser';
 
 import { openai } from './openai-client';
@@ -86,16 +87,24 @@ export function combineTitleAndContent(title: string, content: string): string {
  * @param {Array<{title: string, content: string}>} articles - Array of articles to generate embeddings for
  * @returns {Promise<number[][]>} Array of embedding vectors for each article
  */
-export async function batchGenerateEmbeddings(
-  articles: { title: string; content: string }[]
-): Promise<number[][]> {
+export async function batchGenerateEmbeddings(articles: { title: string; content: string }[]): Promise<number[][]> {
   const results: number[][] = [];
+
+  // Create a new progress bar instance
+  const progressBar = new cliProgress.SingleBar({
+    format: 'Embedding Progress |{bar}| {percentage}% || {value}/{total} Batches',
+    barCompleteChar: '\u2588',
+    barIncompleteChar: '\u2591',
+    hideCursor: true,
+  });
+
+  // Start the progress bar
+  const totalBatches = Math.ceil(articles.length / BATCH_SIZE);
+  progressBar.start(totalBatches, 0);
 
   for (let i = 0; i < articles.length; i += BATCH_SIZE) {
     const batch = articles.slice(i, i + BATCH_SIZE);
-    const inputs = batch.map(({ title, content }) =>
-      combineTitleAndContent(title, content)
-    );
+    const inputs = batch.map(({ title, content }) => combineTitleAndContent(title, content));
 
     const response = await openai.embeddings.create({
       input: inputs,
@@ -104,7 +113,18 @@ export async function batchGenerateEmbeddings(
 
     const embeddings = response.data.map((item) => item.embedding);
     results.push(...embeddings);
+
+    // Increment progress bar
+    progressBar.increment();
   }
 
+  // Stop the progress bar when done
+  progressBar.stop();
+
   return results;
+}
+
+// Helper to validate embedding arrays
+export function isValidEmbedding(embedding: unknown): embedding is number[] {
+  return Array.isArray(embedding) && embedding.length === 1536 && embedding.every((n) => typeof n === 'number');
 }

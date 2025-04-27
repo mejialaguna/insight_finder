@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { title } from 'process';
 import prisma from '../lib/prisma';
-import getFeed, { batchGenerateEmbeddings } from '../lib/server-utils';
+import getFeed, { batchGenerateEmbeddings, isValidEmbedding } from '../lib/server-utils';
 import { validateAndDeduplicateArticles } from '../lib/utils';
 
 async function main() {
@@ -45,11 +45,25 @@ async function main() {
     embedding: embeddings[idx],
   }));
 
+    // Validate embeddings
+    const safeArticlesToInsert = articlesWithEmbeddings.filter((article, idx) => {
+      if (!isValidEmbedding(article.embedding)) {
+        console.warn(`⚠️ Invalid embedding for article [${article.title}] at index ${idx}. Skipping.`);
+        return false;
+      }
+      return true;
+    });
+  
+    if (safeArticlesToInsert.length === 0) {
+      console.error('❌ No valid articles to insert after embedding validation.');
+      return;
+    }
+
   await prisma.article.createMany({
     data: articlesWithEmbeddings,
   });
 
-  console.log('✅ Articles seeded successfully.');
+  console.log(`✅ Seeded ${safeArticlesToInsert.length} articles successfully.`);
 }
 
 main()

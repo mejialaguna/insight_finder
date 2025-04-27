@@ -1,11 +1,14 @@
 'use server';
 
-import 'server-only';
 import Parser from 'rss-parser';
 
-import type { Article, Feed } from '@/interfaces';
+import { openai } from './openai-client';
+
+import type { Article, Feed } from '../seed/seed';
 
 const parser = new Parser();
+const BATCH_SIZE = 20;
+const MAX_CHARACTERS = 12000;
 
 interface FeedResponse {
   ok: boolean;
@@ -19,12 +22,17 @@ const feedUrls = [
   'https://rss.nytimes.com/services/xml/rss/nyt/US.xml',
 ];
 
+/**
+ * Fetches and parses RSS feeds from configured news sources.
+ * Currently fetches from NYT World and US feeds.
+ * @returns {Promise<FeedResponse>} Object containing success status and parsed articles
+ */
 export default async function getFeed(): Promise<FeedResponse> {
   try {
     const feedPromises = feedUrls.map((url) => parser.parseURL(url));
     const feeds = await Promise.all(feedPromises);
 
-    const articles:Feed[] = feeds.flatMap((feed) =>
+    const articles: Feed[] = feeds.flatMap((feed) =>
       (feed.items || []).map((item) => ({
         ...item,
         articleType: feed.title?.replace('NYT > ', '') || 'Unknown',
@@ -39,7 +47,9 @@ export default async function getFeed(): Promise<FeedResponse> {
     }
 
     // eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
-    const cleanedArticles: Article[] = articles.map(({ categories, ...rest }) => rest);
+    const cleanedArticles: Article[] = articles.map(
+      ({ categories: _categories, ...rest }) => rest
+    );
 
     return {
       ok: true,
@@ -54,4 +64,47 @@ export default async function getFeed(): Promise<FeedResponse> {
       message: `Error fetching Reuters RSS: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
   }
+}
+
+/**
+ * Combines article title and content into a single string, ensuring it doesn't exceed the maximum character limit.
+ * @param {string} title - The article title
+ * @param {string} content - The article content
+ * @returns {string} Combined title and content, truncated if necessary
+ */
+export function combineTitleAndContent(title: string, content: string): string {
+  let combined = `${title}\n\n${content}`;
+  if (combined.length > MAX_CHARACTERS) {
+    combined = combined.slice(0, MAX_CHARACTERS);
+  }
+  return combined;
+}
+
+/**
+ * Generates embeddings for a batch of articles using OpenAI's embedding API.
+ * Processes articles in batches to handle API limits and optimize performance.
+ * @param {Array<{title: string, content: string}>} articles - Array of articles to generate embeddings for
+ * @returns {Promise<number[][]>} Array of embedding vectors for each article
+ */
+export async function batchGenerateEmbeddings(
+  articles: { title: string; content: string }[]
+): Promise<number[][]> {
+  const results: number[][] = [];
+
+  for (let i = 0; i < articles.length; i += BATCH_SIZE) {
+    const batch = articles.slice(i, i + BATCH_SIZE);
+    const inputs = batch.map(({ title, content }) =>
+      combineTitleAndContent(title, content)
+    );
+
+    const response = await openai.embeddings.create({
+      input: inputs,
+      model: 'text-embedding-ada-002',
+    });
+
+    const embeddings = response.data.map((item) => item.embedding);
+    results.push(...embeddings);
+  }
+
+  return results;
 }

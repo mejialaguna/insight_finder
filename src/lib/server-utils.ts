@@ -9,6 +9,7 @@ import type { Article, Feed } from '../seed/seed';
 
 const parser = new Parser();
 const BATCH_SIZE = 20;
+const CONCURRENT_BATCHES = 5;
 const MAX_CHARACTERS = 12000;
 
 interface FeedResponse {
@@ -81,6 +82,14 @@ export function combineTitleAndContent(title: string, content: string): string {
   return combined;
 }
 
+async function embedBatch(inputs: string[]): Promise<number[][]> {
+  const response = await openai.embeddings.create({
+    input: inputs,
+    model: 'text-embedding-ada-002',
+  });
+  return response.data.map((item) => item.embedding);
+}
+
 /**
  * Generates embeddings for a batch of articles using OpenAI's embedding API.
  * Processes articles in batches to handle API limits and optimize performance.
@@ -88,9 +97,14 @@ export function combineTitleAndContent(title: string, content: string): string {
  * @returns {Promise<number[][]>} Array of embedding vectors for each article
  */
 export async function batchGenerateEmbeddings(articles: { title: string; content: string }[]): Promise<number[][]> {
-  const results: number[][] = [];
+  const batches: { inputs: string[] }[] = [];
 
-  // Create a new progress bar instance
+  for (let i = 0; i < articles.length; i += BATCH_SIZE) {
+    const batch = articles.slice(i, i + BATCH_SIZE);
+    const inputs = batch.map(({ title, content }) => combineTitleAndContent(title, content));
+    batches.push({ inputs });
+  }
+
   const progressBar = new cliProgress.SingleBar({
     format: 'Embedding Progress |{bar}| {percentage}% || {value}/{total} Batches',
     barCompleteChar: '\u2588',
@@ -98,27 +112,24 @@ export async function batchGenerateEmbeddings(articles: { title: string; content
     hideCursor: true,
   });
 
-  // Start the progress bar
-  const totalBatches = Math.ceil(articles.length / BATCH_SIZE);
-  progressBar.start(totalBatches, 0);
+  progressBar.start(batches.length, 0);
 
-  for (let i = 0; i < articles.length; i += BATCH_SIZE) {
-    const batch = articles.slice(i, i + BATCH_SIZE);
-    const inputs = batch.map(({ title, content }) => combineTitleAndContent(title, content));
+  const results: number[][] = [];
 
-    const response = await openai.embeddings.create({
-      input: inputs,
-      model: 'text-embedding-ada-002',
+  for (let i = 0; i < batches.length; i += CONCURRENT_BATCHES) {
+    const chunk = batches.slice(i, i + CONCURRENT_BATCHES);
+
+    const promises = chunk.map(({ inputs }) => embedBatch(inputs));
+
+    const chunkResults = await Promise.all(promises);
+
+    chunkResults.forEach((embeddings) => {
+      results.push(...embeddings);
     });
 
-    const embeddings = response.data.map((item) => item.embedding);
-    results.push(...embeddings);
-
-    // Increment progress bar
-    progressBar.increment();
+    progressBar.increment(chunk.length);
   }
 
-  // Stop the progress bar when done
   progressBar.stop();
 
   return results;

@@ -35,6 +35,7 @@ export default async function Main({ conversationId }: MainPageProp) {
   return (
     <SidebarProvider>
       <AppSidebar
+        key={conversationId}
         conversations={conversations}
         conversationId={conversationId}
       />

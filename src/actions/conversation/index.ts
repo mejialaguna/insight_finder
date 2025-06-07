@@ -10,6 +10,10 @@ import type {
   MessagesResponse,
 } from '@/interfaces';
 
+export type CreateNewTitleResponse = ConversationResponse & {
+  messageId?: string;
+};
+
 export const getUser = async (userEmail: string) => {
   const error = validateRequiredFields({ userEmail });
   if (error) {
@@ -105,7 +109,7 @@ export const createNewMessage = async (
 
 export async function createNewTitle(
   prompt: string
-): Promise<ConversationResponse> {
+): Promise<CreateNewTitleResponse> {
   const error = validateRequiredFields({ prompt });
 
   if (error) {
@@ -124,14 +128,14 @@ export async function createNewTitle(
       throw new Error(error || 'Failed to create new conversation');
     }
 
-    const { ok: messageOk } = await createNewMessage(
+    const { ok: messageOk, messageId } = await createNewMessage(
       conversationId,
       prompt,
       'user'
     );
 
     return messageOk
-      ? { ok: true, conversationId, title }
+      ? { ok: true, conversationId, title, messageId }
       : { ok: false, error: 'Failed to create new message' };
   } catch (error) {
     return {

@@ -1,12 +1,4 @@
-import { ChatForm } from './chat-form';
-
-interface ChatInterfaceProps {
-  // eslint-disable-next-line no-unused-vars
-  handleAction: (formData: FormData) => void | Promise<void>;
-  isGenerating?: boolean;
-}
-
-export function ChatInterface({ handleAction, isGenerating }: ChatInterfaceProps) {
+export function ChatInterface() {
   return (
     <div className='p-4 border-t flex flex-col flex-1'>
       <div className='flex flex-col items-center justify-center xs:h-[50vh] text-center p-8'>
@@ -34,7 +26,6 @@ export function ChatInterface({ handleAction, isGenerating }: ChatInterfaceProps
           </div>
         </div>
       </div>
-      <ChatForm handleAction={handleAction} isGenerating={isGenerating} />
     </div>
   );
 }

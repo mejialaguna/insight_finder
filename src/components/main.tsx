@@ -41,6 +41,7 @@ export default async function Main({ conversationId }: MainPageProp) {
       <SidebarInset>
         <Header />
         <FeatureArea
+          key={conversationId}
           conversationId={conversationId}
           {...(messages.length > 0 && { messages })}
         />

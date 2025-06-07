@@ -98,7 +98,7 @@ export function AppSidebar({
             setOpen={setOpen}
           />
         </CollapsedTooltip>
-        {data?.conversations?.length && <NavProjects projects={data.conversations} />}
+        {data?.conversations && data?.conversations?.length > 0 && <NavProjects projects={data.conversations} />}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

@@ -20,12 +20,13 @@ export default function FeatureArea({
   messages,
 }: FeatureAreaProp) {
   const router = useRouter();
-  const { shouldShowNewConversation } = useNewConversationFeature();
+  const { shouldShowNewConversation, setShouldShowNewConversation } = useNewConversationFeature();
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [conversationMessages, setConversationMessages] = useState<Message[]>(
     messages || []
   );
+  const [conId, setConId] = useState<string>(conversationId || '');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const handleAction = useCallback(
@@ -33,9 +34,11 @@ export default function FeatureArea({
       const prompt = formData.get('prompt') as string;
       setIsThinking(true);
       setIsGenerating(true);
-  
-      const localConversationId = conversationId || `${crypto.randomUUID()}-newConversation`;
-  
+
+      if(shouldShowNewConversation) setShouldShowNewConversation(false);
+
+      const localConversationId = conId || `${crypto.randomUUID()}-newConversation`;
+
       const userMessage: Message = {
         id: crypto.randomUUID(),
         role: 'user',
@@ -46,6 +49,11 @@ export default function FeatureArea({
 
       setConversationMessages((prev) => [...prev, userMessage]);
 
+      const openAIMessages = [...conversationMessages, userMessage].map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
       // Wait one paint frame to let DOM update before fetch
       requestAnimationFrame(async () => {
         try {
@@ -53,6 +61,7 @@ export default function FeatureArea({
             method: 'POST',
             body: JSON.stringify({
               prompt,
+              messages: openAIMessages,
               ...(conversationId && { conversation_id: conversationId }),
             }),
           });
@@ -61,25 +70,26 @@ export default function FeatureArea({
           if (!res.body) throw new Error('No response body');
   
           const c_Id = res.headers.get('X-Conversation-Id');
+          const m_Id = res.headers.get('X-Message-Id');
+
           if (c_Id && c_Id !== conversationId) {
-            router.replace(`?conversationId=${c_Id}`);
+            setConId(c_Id);
           }
-  
+
           setIsThinking(false);
-  
+
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
-          const newMessageId = crypto.randomUUID();
           let accumulatedText = '';
   
           // Add empty assistant message
           setConversationMessages((prev) => [
             ...prev,
             {
-              id: newMessageId,
+              id: m_Id as string,
               role: 'assistant',
               content: '',
-              conversationId: localConversationId,
+              conversationId: c_Id as string,
               timestamp: new Date(),
             },
           ]);
@@ -92,7 +102,7 @@ export default function FeatureArea({
   
             setConversationMessages((prevMessages) =>
               prevMessages.map((msg) =>
-                msg.id === newMessageId ? { ...msg, content: accumulatedText } : msg
+                msg.id === m_Id && msg.role === 'assistant' ? { ...msg, content: accumulatedText } : msg
               )
             );
           }
@@ -108,12 +118,18 @@ export default function FeatureArea({
         }
       });
     },
-    [conversationId, router]
+    [shouldShowNewConversation, setShouldShowNewConversation, conId, conversationMessages, conversationId]
   );
 
   useEffect(() => {
     setConversationMessages(messages || []);
   }, [messages, conversationId]);
+  
+  useEffect(() => {
+    if (!conversationId && conId && !isGenerating) {
+      router.replace(`?conversationId=${conId}`);
+    };
+  }, [conId, conversationId, isGenerating, router]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -122,10 +138,7 @@ export default function FeatureArea({
   return (
     <div className='flex flex-col h-[92vh] gap-4 px-4 pt-4'>
       {shouldShowNewConversation && !conversationId ? (
-        <ChatInterface
-          handleAction={handleAction}
-          isGenerating={isGenerating}
-        />
+        <ChatInterface />
       ) : (
         <div className='flex flex-1 flex-col gap-4 overflow-hidden'>
           {/* Top: Chat Section */}
@@ -159,13 +172,13 @@ export default function FeatureArea({
             )}
           </div>
           {/* ChatForm stays pinned at bottom */}
-          <ChatForm
-            className='pt-4'
-            handleAction={handleAction}
-            isGenerating={isGenerating}
-          />
         </div>
       )}
+      <ChatForm
+        className='pt-4'
+        handleAction={handleAction}
+        isGenerating={isGenerating}
+      />
     </div>
   );
 }

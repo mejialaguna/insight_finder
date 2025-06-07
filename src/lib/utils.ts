@@ -131,3 +131,12 @@ export async function streamAndCollectContent(
 
   return fullContent;
 }
+
+export const aiModelMessagesTransformer = (messages: ChatCompletionMessageParam[]) => {
+  return messages.map((message) => {
+    return {
+      role: message.role,
+      content: message.content,
+    };
+  });
+};

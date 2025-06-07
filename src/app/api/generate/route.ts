@@ -7,8 +7,9 @@ import { streamAndCollectContent, validateRequiredFields } from '@/lib/utils';
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, conversation_id } = await req.json();
+    const { prompt, conversation_id, messages} = await req.json();
     let localConversationId = conversation_id;
+    let message_Id: string | undefined;
     const error = validateRequiredFields({ prompt });
 
     if (error) {
@@ -24,24 +25,28 @@ export async function POST(req: NextRequest) {
 
     if (!localConversationId) {
       // this will create a new conversation, title and new message if is a new conversation
-      const { ok, conversationId, error } = await createNewTitle(prompt);
+      const { ok, conversationId, error, messageId } = await createNewTitle(prompt);
 
       if (!ok || !conversationId || error) {
         throw new Error(error || 'Failed to create new title');
       }
 
       localConversationId = conversationId;
+      message_Id = messageId;
     } else {
       // this will create a new message to the conversation
       // saving the user prompt to the conversation
-      await createNewMessage(localConversationId, prompt, 'user');
+      const { ok, messageId } = await createNewMessage(localConversationId, prompt, 'user');
+
+      if (!ok || !messageId) {
+        throw new Error('Failed to create new message');
+      }
+
+      message_Id = messageId;
     }
 
     const encoder = new TextEncoder();
-    const content = await generateContent({
-      prompt,
-      conversation_id,
-    });
+    const content = await generateContent(messages);
 
     const readableStream = new ReadableStream({
       async start(controller) {
@@ -70,7 +75,8 @@ export async function POST(req: NextRequest) {
     return new Response(readableStream, {
       headers: {
         'Content-Type': 'text/plain',
-        ...(!conversation_id && { 'X-Conversation-Id': localConversationId }),
+        'X-Message-Id': message_Id || '',
+        'X-Conversation-Id': localConversationId || '',
       },
     });
   } catch (error) {

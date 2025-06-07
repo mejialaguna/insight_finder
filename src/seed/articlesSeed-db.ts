@@ -1,12 +1,20 @@
 /* eslint-disable no-console */
-import { title } from 'process';
 import prisma from '../lib/prisma';
 import getFeed, { batchGenerateEmbeddings, isValidEmbedding } from '../lib/server-utils';
 import { validateAndDeduplicateArticles } from '../lib/utils';
 
 async function main() {
   await prisma.article.deleteMany({});
+  await prisma.user.deleteMany({});
   console.log('🧹 Old articles cleared.');
+
+  const user = await prisma.user.create({
+    data: {
+      name: 'mejialaguna',
+      email: 'mejialaguna@gmail.com',
+    },
+  });
+  console.log(`✅ User created: ${user.name}`);
 
   const { ok, articles, message } = await getFeed();
   if (!ok) {

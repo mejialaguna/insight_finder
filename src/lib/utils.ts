@@ -2,10 +2,18 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 import type { Article } from '@prisma/client';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+const promptType = {
+  'title-prompt':
+    'Generate a concise and descriptive title for the following user prompt (no longer than 4 words).',
+  'base-prompt':
+    'You are a helpful assistant. You will be given a prompt and must generate a detail and well-structured response.',
+} as const;
 
 export function formatDistanceToNow(date: Date): string {
   const now = new Date();
@@ -82,4 +90,44 @@ export function validateAndDeduplicateArticles(
   }
 
   return uniqueValidArticles;
+}
+
+export function buildChatOptions(prompt: string, type: keyof typeof promptType) {
+  const messages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: promptType[type] },
+    { role: 'user', content: prompt },
+  ];
+
+  return {
+    model: 'gpt-4',
+    messages,
+  };
+}
+
+export const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : 'Unknown error';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const validateRequiredFields = (fields: Record<string, any>): string | null => {
+  for (const [key, value] of Object.entries(fields)) {
+    if (!value) return `${key} is required`;
+  }
+  return null;
+};
+
+export async function streamAndCollectContent(
+  contentGenerator: AsyncGenerator<string>,
+  controller: ReadableStreamDefaultController<Uint8Array>,
+  encoder: TextEncoder
+): Promise<string> {
+  let fullContent = '';
+
+  for await (const chunk of contentGenerator) {
+    fullContent += chunk;
+    controller.enqueue(encoder.encode(chunk));
+  }
+
+  controller.close();
+
+  return fullContent;
 }

@@ -8,7 +8,7 @@ interface NewConversationFeatureState {
 
 export const useNewConversationFeature = create<NewConversationFeatureState>()(
   (set) => ({
-    shouldShowNewConversation: false,
+    shouldShowNewConversation: true,
     setShouldShowNewConversation: (value: boolean) => set({ shouldShowNewConversation: value }),
   })
 );

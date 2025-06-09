@@ -3,7 +3,7 @@
 import cliProgress from 'cli-progress';
 import Parser from 'rss-parser';
 
-import { openaiClient } from './openai-client';
+import { openaiClient } from '../lib/openai-client';
 
 import type { Article, Feed } from '../seed/seed';
 
@@ -74,7 +74,10 @@ export default async function getFeed(): Promise<FeedResponse> {
  * @param {string} content - The article content
  * @returns {string} Combined title and content, truncated if necessary
  */
-export async function combineTitleAndContent(title: string, content: string): Promise<string> {
+export async function combineTitleAndContent(
+  title: string,
+  content: string
+): Promise<string> {
   let combined = `${title}\n\n${content}`;
   if (combined.length > MAX_CHARACTERS) {
     combined = combined.slice(0, MAX_CHARACTERS);
@@ -96,17 +99,24 @@ async function embedBatch(inputs: string[]): Promise<number[][]> {
  * @param {Array<{title: string, content: string}>} articles - Array of articles to generate embeddings for
  * @returns {Promise<number[][]>} Array of embedding vectors for each article
  */
-export async function batchGenerateEmbeddings(articles: { title: string; content: string }[]): Promise<number[][]> {
+export async function batchGenerateEmbeddings(
+  articles: { title: string; content: string }[]
+): Promise<number[][]> {
   const batches: { inputs: string[] }[] = [];
 
   for (let i = 0; i < articles.length; i += BATCH_SIZE) {
     const batch = articles.slice(i, i + BATCH_SIZE);
-    const inputs = await Promise.all(batch.map(async ({ title, content }) => combineTitleAndContent(title, content)));
+    const inputs = await Promise.all(
+      batch.map(async ({ title, content }) =>
+        combineTitleAndContent(title, content)
+      )
+    );
     batches.push({ inputs });
   }
 
   const progressBar = new cliProgress.SingleBar({
-    format: 'Embedding Progress |{bar}| {percentage}% || {value}/{total} Batches',
+    format:
+      'Embedding Progress |{bar}| {percentage}% || {value}/{total} Batches',
     barCompleteChar: '\u2588',
     barIncompleteChar: '\u2591',
     hideCursor: true,
@@ -137,5 +147,9 @@ export async function batchGenerateEmbeddings(articles: { title: string; content
 
 // Helper to validate embedding arrays
 export async function isValidEmbedding(embedding: unknown): Promise<boolean> {
-  return Array.isArray(embedding) && embedding.length === 1536 && embedding.every((n) => typeof n === 'number');
+  return (
+    Array.isArray(embedding) &&
+    embedding.length === 1536 &&
+    embedding.every((n) => typeof n === 'number')
+  );
 }

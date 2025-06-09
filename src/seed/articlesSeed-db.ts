@@ -4,7 +4,11 @@
 import bcrypt from 'bcryptjs';
 
 import prisma from '../lib/prisma';
-import getFeed, { batchGenerateEmbeddings, isValidEmbedding } from '../lib/server-utils';
+// eslint-disable-next-line import/order
+import getFeed, {
+  batchGenerateEmbeddings,
+  isValidEmbedding,
+} from '../helpers/seed-helper';
 import { validateAndDeduplicateArticles } from '../lib/utils';
 
 async function main() {

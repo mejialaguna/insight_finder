@@ -1,4 +1,8 @@
+'use server';
+
 /* eslint-disable no-console */
+import bcrypt from 'bcryptjs';
+
 import prisma from '../lib/prisma';
 import getFeed, { batchGenerateEmbeddings, isValidEmbedding } from '../lib/server-utils';
 import { validateAndDeduplicateArticles } from '../lib/utils';
@@ -8,10 +12,13 @@ async function main() {
   await prisma.user.deleteMany({});
   console.log('🧹 Old articles cleared.');
 
+  const hashedPassword = await bcrypt.hash('123456789', 10);
+
   const user = await prisma.user.create({
     data: {
       name: 'mejialaguna',
       email: 'mejialaguna@gmail.com',
+      password: hashedPassword,
     },
   });
   console.log(`✅ User created: ${user.name}`);

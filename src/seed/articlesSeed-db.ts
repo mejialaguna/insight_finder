@@ -16,12 +16,12 @@ async function main() {
   await prisma.user.deleteMany({});
   console.log('🧹 Old articles cleared.');
 
-  const hashedPassword = await bcrypt.hash('123456789', 10);
+  const hashedPassword = await bcrypt.hash('@2ZfzjN6!Lmr45', 10);
 
   const user = await prisma.user.create({
     data: {
-      name: 'mejialaguna',
-      email: 'mejialaguna@gmail.com',
+      name: 'mejia laguna',
+      email: 'mejialaguna@yahoo.com',
       password: hashedPassword,
     },
   });

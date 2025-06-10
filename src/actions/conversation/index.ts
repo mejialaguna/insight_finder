@@ -1,3 +1,6 @@
+'use server';
+
+import { getUserByEmail } from '@/lib/server-utils';
 import { getErrorMessage, validateRequiredFields } from '@/lib/utils';
 
 import prisma from '../../lib/prisma';
@@ -14,28 +17,10 @@ export type CreateNewTitleResponse = ConversationResponse & {
   messageId?: string;
 };
 
-export const getUser = async (userEmail: string) => {
-  const error = validateRequiredFields({ userEmail });
-  if (error) {
-    return { ok: false, error };
-  }
-
-  try {
-    const user = await prisma.user.findUnique({
-      where: {
-        email: userEmail,
-      },
-    });
-    return { ok: true, user };
-  } catch (error) {
-    return { ok: false, error: `getUser: ${getErrorMessage(error)}` };
-  }
-};
-
 export const createNewConversation = async (
-  title: string
+  title: string, userEmail: string
 ): Promise<ConversationResponse> => {
-  const error = validateRequiredFields({ title });
+  const error = validateRequiredFields({ title, userEmail });
 
   if (error) {
     return {
@@ -45,7 +30,7 @@ export const createNewConversation = async (
   }
 
   try {
-    const { ok, user } = await getUser('mejialaguna@gmail.com');
+    const { ok, user } = await getUserByEmail(userEmail);
     if (!ok || !user) {
       return { ok: false, error: 'User not found' };
     }
@@ -108,7 +93,7 @@ export const createNewMessage = async (
 };
 
 export async function createNewTitle(
-  prompt: string
+  prompt: string, userEmail: string
 ): Promise<CreateNewTitleResponse> {
   const error = validateRequiredFields({ prompt });
 
@@ -122,7 +107,7 @@ export async function createNewTitle(
   try {
     const title = await generateTitle(prompt);
 
-    const { ok, conversationId, error } = await createNewConversation(title);
+    const { ok, conversationId, error } = await createNewConversation(title, userEmail);
 
     if (!ok || !conversationId) {
       throw new Error(error || 'Failed to create new conversation');
@@ -186,7 +171,7 @@ export const getConversations = async (email: string) => {
   }
 
   try {
-    const { ok, user } = await getUser(email);
+    const { ok, user } = await getUserByEmail(email);
 
     if (!ok || !user) {
       return { ok: false, error: 'User not found' };

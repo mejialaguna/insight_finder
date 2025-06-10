@@ -2,7 +2,7 @@
 
 import { GalleryVerticalEnd, Plus } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 
 import { NavProjects } from '@/components/nav-projects';
 import { NavUser } from '@/components/nav-user';
@@ -28,33 +28,41 @@ interface Conversation {
   createdAt: Date;
 }
 
+interface User {
+  name:   string;
+  email:  string;
+  id:     string;
+  avatar: string;
+}
+
 interface AppData {
-  user: {
-    name: string;
-    email: string;
-    avatar: string;
-  };
+  user: User;
   conversations?: Conversation[];
 }
 
 export function AppSidebar({
   conversations,
   conversationId,
+  user,
   ...props
-}: React.ComponentProps<typeof Sidebar> & { conversations?: Conversation[], conversationId?: string }) {
+}: React.ComponentProps<typeof Sidebar> & {
+  conversations?: Conversation[];
+  conversationId?: string;
+  user: User;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const { setShouldShowNewConversation } = useNewConversationFeature();
   const { state, setOpen } = useSidebar();
   // eslint-disable-next-line no-unused-vars, @typescript-eslint/no-unused-vars
-  const [data, setData] = React.useState<AppData>({
-    user: {
-      name: 'shadcn',
-      email: 'm@example.com',
-      avatar: '/avatars/shadcn.jpg',
-    },
-    ...(conversations && { conversations }),
-  });
+  const userData: AppData = useMemo(
+    () => ({
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      user: user!,
+      ...(conversations && { conversations }),
+    }),
+    [conversations, user]
+  );
 
   const handleAddConversation = useCallback(() => {
     if (conversationId) router.replace(pathname);
@@ -98,10 +106,12 @@ export function AppSidebar({
             setOpen={setOpen}
           />
         </CollapsedTooltip>
-        {data?.conversations && data?.conversations?.length > 0 && <NavProjects projects={data.conversations} />}
+        {userData?.conversations && userData?.conversations?.length > 0 && (
+          <NavProjects projects={userData.conversations} />
+        )}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={userData.user} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

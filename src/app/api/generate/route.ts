@@ -3,10 +3,18 @@ import { type NextRequest, NextResponse } from 'next/server';
 
 import { createNewMessage, createNewTitle } from '@/actions/conversation';
 import { generateContent } from '@/actions/openAiAction';
+import { auth } from '@/lib/auth-no-edge';
 import { streamAndCollectContent, validateRequiredFields } from '@/lib/utils';
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await auth();
+    if (!session?.user || !session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userEmail = session?.user?.email || '';
+
     const { prompt, conversation_id, messages} = await req.json();
     let localConversationId = conversation_id;
     let message_Id: string | undefined;
@@ -25,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     if (!localConversationId) {
       // this will create a new conversation, title and new message if is a new conversation
-      const { ok, conversationId, error, messageId } = await createNewTitle(prompt);
+      const { ok, conversationId, error, messageId } = await createNewTitle(prompt, userEmail);
 
       if (!ok || !conversationId || error) {
         throw new Error(error || 'Failed to create new title');

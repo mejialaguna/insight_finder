@@ -193,3 +193,19 @@ export const getConversations = async (email: string) => {
     return { ok: false, error: `getConversations: ${getErrorMessage(error)}` };
   }
 };
+
+export const deleteConversation = async (conversationId: string) => {
+  const error = validateRequiredFields({ conversationId });
+
+  if (error) {
+    return { ok: false, error };
+  }
+
+  try {
+    await prisma.conversation.delete({
+      where: { id:conversationId },
+    });
+  } catch (error) {
+    return { ok: false, error: `deleteConversation: ${getErrorMessage(error)}` };
+  }
+};

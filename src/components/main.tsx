@@ -43,7 +43,7 @@ export default async function Main({ conversationId }: MainPageProp) {
         user={user}
       />
       <SidebarInset>
-        <Header  conversationId={conversationId} />
+        <Header conversationId={conversationId} />
         <FeatureArea
           key={conversationId}
           conversationId={conversationId}

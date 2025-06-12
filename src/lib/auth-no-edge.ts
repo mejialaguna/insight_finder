@@ -1,13 +1,10 @@
 import bcrypt from 'bcryptjs';
-import NextAuth from 'next-auth';
+import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 
 import { nextAuthEdgeConfig } from './auth-edge';
 import { authSchema } from './content-types';
 import { getUserByEmail } from './server-utils';
-
-// eslint-disable-next-line no-duplicate-imports
-import type { NextAuthConfig } from 'next-auth';
 
 const config = {
   ...nextAuthEdgeConfig,

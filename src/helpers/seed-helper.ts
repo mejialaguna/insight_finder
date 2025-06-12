@@ -85,7 +85,7 @@ export async function combineTitleAndContent(
   return combined;
 }
 
-async function embedBatch(inputs: string[]): Promise<number[][]> {
+export async function embedBatch(inputs: string[]): Promise<number[][]> {
   const response = await openaiClient.embeddings.create({
     input: inputs,
     model: 'text-embedding-ada-002',
@@ -99,7 +99,7 @@ async function embedBatch(inputs: string[]): Promise<number[][]> {
  * @param {Array<{title: string, content: string}>} articles - Array of articles to generate embeddings for
  * @returns {Promise<number[][]>} Array of embedding vectors for each article
  */
-export async function batchGenerateEmbeddings(
+export async function batchGenerateArticleEmbeddings(
   articles: { title: string; content: string }[]
 ): Promise<number[][]> {
   const batches: { inputs: string[] }[] = [];

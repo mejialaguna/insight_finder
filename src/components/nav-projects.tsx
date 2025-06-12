@@ -3,8 +3,10 @@
 import { UserSearch,  MoreHorizontal, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
+import { deleteConversation } from '@/actions/conversation';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import {
   DropdownMenu,
@@ -35,6 +37,7 @@ export function NavProjects({
   const [isOpen, setIsOpen] = useState(true);
   const pathName = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { setShouldShowNewConversation } = useNewConversationFeature();
 
   const createPageUrl = useCallback((conversationId: number | string) => {
@@ -76,9 +79,13 @@ export function NavProjects({
                       side={isMobile ? 'bottom' : 'right'}
                       align={isMobile ? 'end' : 'start'}
                     >
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        deleteConversation(item.id);
+                        router.replace(pathName);
+                        setShouldShowNewConversation(true);
+                      }}>
                         <Trash2 className='text-muted-foreground' />
-                        <span>Delete Project</span>
+                        <span>Delete Conversation</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

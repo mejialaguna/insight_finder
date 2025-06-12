@@ -1,5 +1,9 @@
+import 'server-only';
+
+import { embedBatch } from '@/helpers/seed-helper';
 import { openaiClient } from '@/lib/openai-client';
-import { buildChatOptions } from '@/lib/utils';
+import prisma from '@/lib/prisma';
+import { buildChatOptions, extractSemanticQuery, mainPrompt, similarArticles } from '@/lib/utils';
 
 import type {
   ChatCompletionChunk,
@@ -15,9 +19,7 @@ export async function* generateContent(messages: ChatCompletionMessageParam[]) {
       messages: [
         {
           role: 'system',
-          content:
-            // eslint-disable-next-line max-len
-            'You are a helpful assistant. You will be given a prompt and must generate a detail and well-structured response.',
+          content: mainPrompt,
         },
         ...messages,
       ],
@@ -27,12 +29,39 @@ export async function* generateContent(messages: ChatCompletionMessageParam[]) {
     const stream = (await openaiClient.chat.completions.create(
       options as ChatCompletionCreateParamsStreaming
     )) as Stream<ChatCompletionChunk>;
+    let fullResponse = '';
 
     for await (const chunk of stream) {
       const content = chunk?.choices[0]?.delta?.content || '';
       if (content) {
-        yield content; // Stream each chunk of the response
+        fullResponse += content;
+        yield '';
       }
+    }
+
+    const parsed = JSON.parse(fullResponse);
+    const semanticKeys = extractSemanticQuery(parsed);
+    const embeddings = await embedBatch(semanticKeys);
+
+    const articles = await prisma.article.aggregateRaw({
+      pipeline: [
+        {
+          $vectorSearch: {
+            index: 'articles',
+            path: 'embedding',
+            queryVector: embeddings[0],
+            numCandidates: 100,
+            limit: 5,
+            similarity: 'cosine',
+          },
+        },
+      ],
+    });
+
+    const similarCosineArticles = similarArticles(articles, embeddings);
+
+    for (const article of similarCosineArticles) {
+      yield `${JSON.stringify(article)}\n`;
     }
   } catch (error) {
     throw error instanceof Error

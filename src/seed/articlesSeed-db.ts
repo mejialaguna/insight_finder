@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
 // eslint-disable-next-line import/order
 import getFeed, {
-  batchGenerateEmbeddings,
+  batchGenerateArticleEmbeddings,
   isValidEmbedding,
 } from '../helpers/seed-helper';
 import { validateAndDeduplicateArticles } from '../lib/utils';
@@ -56,7 +56,7 @@ async function main() {
   }));
 
   // 2. Batch embed
-  const embeddings = await batchGenerateEmbeddings(articleInputs);
+  const embeddings = await batchGenerateArticleEmbeddings(articleInputs);
 
   // 3. Attach embeddings
   const articlesWithEmbeddings = validUniqueArticles.map((article, idx) => ({

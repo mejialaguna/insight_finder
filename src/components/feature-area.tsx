@@ -139,7 +139,7 @@ export default function FeatureArea({
       conversationId,
     ]
   );
-  console.log('conversationMessages', conversationMessages);
+
   useEffect(() => {
     setConversationMessages(messages || []);
   }, [messages, conversationId]);

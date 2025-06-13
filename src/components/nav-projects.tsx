@@ -2,8 +2,7 @@
 
 import { UserSearch,  MoreHorizontal, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { useRouter } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { useCallback, useState } from 'react';
 
 import { deleteConversation } from '@/actions/conversation';

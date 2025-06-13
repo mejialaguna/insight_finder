@@ -3,7 +3,7 @@ import 'server-only';
 import { embedBatch } from '@/helpers/seed-helper';
 import { openaiClient } from '@/lib/openai-client';
 import prisma from '@/lib/prisma';
-import { buildChatOptions, extractSemanticQuery, mainPrompt, similarArticles } from '@/lib/utils';
+import { buildChatOptions, extractSemanticQuery, mainPrompt } from '@/lib/utils';
 
 import type {
   ChatCompletionChunk,
@@ -43,7 +43,8 @@ export async function* generateContent(messages: ChatCompletionMessageParam[]) {
     const semanticKeys = extractSemanticQuery(parsed);
     const embeddings = await embedBatch(semanticKeys);
 
-    const articles = await prisma.article.aggregateRaw({
+    const articles = (await prisma.$runCommandRaw({
+      aggregate: 'articles',
       pipeline: [
         {
           $vectorSearch: {
@@ -51,18 +52,31 @@ export async function* generateContent(messages: ChatCompletionMessageParam[]) {
             path: 'embedding',
             queryVector: embeddings[0],
             numCandidates: 100,
-            limit: 5,
-            similarity: 'cosine',
+            limit: 20,
           },
         },
+        {
+          $project: {
+            _id: 1,
+            title: 1,
+            content: 1,
+            link: 1,
+            articleType: 1,
+            pubDate: 1,
+            score: { $meta: 'vectorSearchScore' },
+          },
+        },
+        { $match: { score: { $gte: 0.7 } } },
+        { $sort: { score: -1 } },
+        { $limit: 5 },
       ],
-    });
+      cursor: {},
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    })) as any;
 
-    const similarCosineArticles = similarArticles(articles, embeddings);
+    const results = articles.cursor.firstBatch || [];
 
-    for (const article of similarCosineArticles) {
-      yield `${JSON.stringify(article)}\n`;
-    }
+    yield JSON.stringify(results);
   } catch (error) {
     throw error instanceof Error
       ? error

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { extractJsonFromContent } from '@/helpers/parseMessages';
 import { cn } from '@/lib/utils';
 import { useNewConversationFeature } from '@/store';
 
@@ -34,6 +35,9 @@ export default function FeatureArea({
   const handleAction = useCallback(
     async (formData: FormData) => {
       const prompt = formData.get('prompt') as string;
+
+      if (!prompt || prompt.trim() === '') return;
+
       setIsThinking(true);
       setIsGenerating(true);
 
@@ -81,8 +85,6 @@ export default function FeatureArea({
             setConId(c_Id);
           }
 
-          setIsThinking(false);
-
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let accumulatedText = '';
@@ -101,7 +103,10 @@ export default function FeatureArea({
 
           while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) {
+              setIsThinking(false);
+              break;
+            }
             const chunk = decoder.decode(value);
             accumulatedText += chunk;
 
@@ -109,25 +114,18 @@ export default function FeatureArea({
               prevMessages.map((msg) => {
                 if (msg.id !== m_Id || msg.role !== 'assistant') return msg;
 
-                try {
-                  const parsed = JSON.parse(accumulatedText);
-                  return { ...msg, content: parsed };
-                } catch {
-                  // Not yet fully parsable JSON, just update raw text
-                  return { ...msg, content: accumulatedText };
-                }
+                return { ...msg, content: accumulatedText };
               })
             );
           }
         } catch (err) {
           setIsGenerating(false);
           setIsThinking(false);
-          // setError('Failed to generate content. Please try again.');
+
           // eslint-disable-next-line no-console
           console.error(err);
         } finally {
           setIsGenerating(false);
-          setIsThinking(false);
         }
       });
     },
@@ -154,67 +152,83 @@ export default function FeatureArea({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversationMessages]);
 
+  // console.log('conversationMessages =====>', conversationMessages);
+
   return (
-    <div className="flex flex-col h-[92vh] gap-4 px-4 pt-4">
+    <div className='flex flex-col h-[92vh] gap-4 px-4 pt-4'>
       {shouldShowNewConversation && !conversationId ? (
         <ChatInterface />
       ) : (
-        <div className="flex flex-1 flex-col gap-4 overflow-hidden">
-          {/* Top: Chat Section */}
-          <div className="flex-1 rounded-xl bg-muted/50 p-4 overflow-auto">
+        <div className='flex flex-1 flex-col gap-4 overflow-hidden'>
+          <div className='flex-1 rounded-xl bg-muted/50 p-4 overflow-auto'>
             {conversationMessages?.map((message) => {
               const isAssistant = message.role === 'assistant';
-              let parsedContent = message.content;
+              const newContent = extractJsonFromContent(message.content);
+              const aiModelMessage = newContent?.statusText;
+              const aiModelArticles = newContent?.articles;
 
-              if (isAssistant && typeof message.content === 'string') {
-                try {
-                  parsedContent = JSON.parse(message.content);
-                } catch {
-                  // Not yet JSON — leave as string
-                }
-              }
               return (
                 <div
                   key={message.id}
                   className={cn(
                     'flex gap-6 mb-6',
-                    message.role === 'user' ? ' flex-row-reverse' : ''
+                    message.role === 'user' ? 'flex-row-reverse' : ''
                   )}
                 >
-                  <span
-                    className={cn(
-                      'flex items-center justify-center rounded-full bg-slate-300 px-4 py-1 h-full'
-                    )}
-                  >
+                  <span className='flex items-center justify-center rounded-full bg-slate-300 px-4 py-1 h-full'>
                     {message.role === 'user' ? 'Me' : 'Assistant'}
                   </span>
-                  <div className="content-center">
-                    {!isAssistant ? (
-                      <p>{message.content}</p>
-                    ) : Array.isArray(parsedContent) ? (
-                      <div className="flex flex-col gap-4">
+                  <div className='content-center space-y-4'>
+                    {!isAssistant && (
+                      <p className='border p-4 rounded-md bg-white shadow'>
+                        {message.content}
+                      </p>
+                    )}
+                    {
+                      aiModelMessage && aiModelMessage.length > 0 && (
                         <AnimatePresence>
-                          {parsedContent.map((item, idx) => (
+                          {aiModelMessage?.map((line, idx) => (
+                            <motion.div
+                              key={idx}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.3, delay: idx * 0.1 }}
+                              className='border p-4 rounded-md bg-white shadow w-fit text-sm italic text-gray-600'
+                            >
+                              <p>
+                                {line}
+                              </p>
+                            </motion.div>
+                          ))}
+                        </AnimatePresence>
+                      )
+                    }
+                    {aiModelArticles && aiModelArticles.length > 0 && (
+                      <div className='flex flex-col gap-4'>
+                        <AnimatePresence>
+                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                          {aiModelArticles?.map((item: any, idx: number) => (
                             <motion.div
                               key={item.link || idx}
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0 }}
                               transition={{ duration: 0.3, delay: idx * 0.1 }}
-                              className="border p-4 rounded-md bg-white shadow"
+                              className='border p-4 rounded-md bg-white shadow w-fit'
                             >
-                              <h3 className="font-semibold text-lg">
+                              <h3 className='font-semibold text-lg'>
                                 {item.title}
                               </h3>
-                              <p className="text-sm text-gray-600 mb-2">
+                              <p className='text-sm text-gray-600 mb-2'>
                                 {item.articleType}
                               </p>
-                              <p className="mb-2">{item.content}</p>
+                              <p className='mb-2'>{item.content}</p>
                               <a
                                 href={item.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-500 underline text-sm"
+                                target='_blank'
+                                rel='noopener noreferrer'
+                                className='text-blue-500 underline text-sm'
                               >
                                 Read more
                               </a>
@@ -222,8 +236,6 @@ export default function FeatureArea({
                           ))}
                         </AnimatePresence>
                       </div>
-                    ) : (
-                      <p>{parsedContent}</p>
                     )}
                   </div>
                 </div>
@@ -231,22 +243,23 @@ export default function FeatureArea({
             })}
             <div ref={bottomRef} />
             {isThinking && (
-              <div className="thinking-dots mb-6">
+              <div className='thinking-dots mb-6'>
                 Thinking
-                <span className="ml-1" />
+                <span className='ml-1' />
                 <span />
                 <span />
               </div>
             )}
           </div>
-          {/* ChatForm stays pinned at bottom */}
         </div>
       )}
       <ChatForm
-        className="pt-4"
+        className='pt-4'
         handleAction={handleAction}
         isGenerating={isGenerating}
       />
     </div>
   );
 }
+
+// "{"type":"status","results":"Analyzing"}{"type":"status","results":" "}{"type":"status","results":"your"}{"type":"status","results":" "}{"type":"status","results":"query..."}{"type":"status","results":"\n"}{"type":"status","results":"Found"}{"type":"status","results":" "}{"type":"status","results":"relevant"}{"type":"status","results":" "}{"type":"status","results":"articles,"}{"type":"status","results":" "}{"type":"status","results":"Preparing"}{"type":"status","results":" "}{"type":"status","results":"articles..."}{"type":"status","results":"\n"}{"type":"articles","results":[{"_id":{"$oid":"68486f004d3182946b80ce6d"},"title":"Trump’s International Student Ban Sparks Fear Among Harvard Attendees","link":"https://www.nytimes.com/2025/06/07/us/trump-harvard-international-student-ban.html","pubDate":{"$date":"2025-06-09T16:16:32Z"},"content":"Alfred Williamson could not have imagined how much his freshman year would be shaped by the Trump administration, inside and outside the classroom.","articleType":"World News","score":0.7212512493133545},{"_id":{"$oid":"68486f004d3182946b80ce79"},"title":"In Trump’s ‘Patriotic’ Hiring Plan, Experts See a Politicized Federal Work Force","link":"https://www.nytimes.com/2025/06/10/us/politics/trumps-politicized-federal-work-force.html","pubDate":{"$date":"2025-06-10T09:02:01Z"},"content":"Political appointments inherently take into consideration loyalty to the president or the party. But expanding those types of questions to the career civil service is a significant departure.","articleType":"U.S. News","score":0.7210296392440796},{"_id":{"$oid":"68486f004d3182946b80ce7b"},"title":"Trump’s Crackdown on LA Protests Contrasts With His Jan. 6 Response","link":"https://www.nytimes.com/2025/06/09/us/trump-la-riots-protests.html","pubDate":{"$date":"2025-06-10T01:20:06Z"},"content":"The president often expresses an open desire for aggressive law enforcement and harsh tactics when protests originate from the political left.","articleType":"U.S. News","score":0.7199058532714844},{"_id":{"$oid":"68486f004d3182946b80ce84"},"title":"Trump Pivots From Musk to Newsom","link":"https://www.nytimes.com/2025/06/09/us/politics/trump-newsom-musk-feud.html","pubDate":{"$date":"2025-06-09T22:02:39Z"},"content":"One constant in President Trump’s second term is that the subjects of his quarrels are ever-changing.","articleType":"U.S. News","score":0.717564046382904},{"_id":{"$oid":"68486f004d3182946b80ce4a"},"title":"Tuesday Briefing","link":"https://www.nytimes.com/2025/06/10/briefing/california-trump-gaza-ukraine.html","pubDate":{"$date":"2025-06-10T16:13:45Z"},"content":"A lawsuit between California and President Trump.","articleType":"World News","score":0.716423511505127}]}"

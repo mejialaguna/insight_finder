@@ -152,8 +152,6 @@ export default function FeatureArea({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversationMessages]);
 
-  // console.log('conversationMessages =====>', conversationMessages);
-
   return (
     <div className='flex flex-col h-[92vh] gap-4 px-4 pt-4'>
       {shouldShowNewConversation && !conversationId ? (

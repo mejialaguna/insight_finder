@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { checkIsValidJsonType } from '@/helpers/parseMessages';
 import { embedBatch } from '@/helpers/seed-helper';
 import { openaiClient } from '@/lib/openai-client';
 import prisma from '@/lib/prisma';
@@ -12,14 +13,48 @@ import {
 
 import type {
   ChatCompletionChunk,
+  ChatCompletionCreateParamsNonStreaming,
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
 } from 'openai/resources/index.mjs';
 import type { Stream } from 'openai/streaming.mjs';
 
+function isAnswerInsufficient(response: string): boolean {
+  const vaguePhrases = [
+    'I have information about',
+    'I can provide more details',
+    'I can search',
+    'not sure',
+    'I cannot verify',
+    'if you want, I can',
+    'depends',
+    'hard to say',
+    'I currently do not have',
+    'Would you like me',
+    "I don't have",
+    'i do not',
+    'there is no specific',
+    'Based on available information',
+    "There isn't specific public information",
+    'Not enough information',
+    "I don't have information",
+    'No data available',
+    'Cannot find details',
+    'Insufficient data',
+    'Insufficient context',
+  ];
+
+  if (response.length < 50) return true;
+
+  return vaguePhrases.some((phrase) =>
+    response.toLowerCase().includes(phrase.toLowerCase())
+  );
+}
+
 const optionsGenerator = (
   messages: ChatCompletionMessageParam[],
-  systemContent: string
+  systemContent: string,
+  model: string = 'gpt-3.5-turbo'
 ): ChatCompletionCreateParamsStreaming => {
   const prompt = {
     classification: messageClassificationPrompt,
@@ -28,7 +63,7 @@ const optionsGenerator = (
   };
 
   return {
-    model: 'gpt-3.5-turbo',
+    model,
     messages: [
       { role: 'system', content: prompt[systemContent as keyof typeof prompt] },
       ...messages,
@@ -66,19 +101,70 @@ async function collectStream(stream: AsyncGenerator<string>): Promise<string> {
   return fullResponse.trim();
 }
 
+function buildClassificationMessages(
+  conversation: ChatCompletionMessageParam[]
+): ChatCompletionMessageParam[] {
+  const relevantMessages: ChatCompletionMessageParam[] = [];
+
+  // Walk backwards through conversation to get last assistant-user pair
+  for (let i = conversation.length - 1; i >= 0; i--) {
+    const m = conversation[i];
+    relevantMessages.unshift(m);
+
+    // Stop when we see assistant followed by user — i.e. 1 full exchange
+    if (m.role === 'assistant') {
+      if (i > 0 && conversation[i - 1]?.role === 'user') {
+        relevantMessages.unshift(conversation[i - 1]);
+        break;
+      }
+    }
+  }
+
+  // If no assistant found (only initial user message), fallback to last 1-2 user messages
+  if (!relevantMessages.some((m) => m.role === 'assistant')) {
+    const userMessages = conversation.filter((m) => m.role === 'user');
+    return userMessages.slice(-2);
+  }
+
+  return relevantMessages;
+}
+
 export async function* generateContent(messages: ChatCompletionMessageParam[]) {
   try {
     yield* yieldStatus('Analyzing your query...');
 
-    const classificationOptions = optionsGenerator(messages, 'classification');
-    const classificationStream = streamOpenAI(classificationOptions);
-    const fullResponse = await collectStream(classificationStream);
-    console.log('fullResponse ======>', fullResponse);
+    const classificationMessages = buildClassificationMessages(messages);
+
+    const classificationOptions = {
+      model: 'gpt-3.5-turbo',
+      messages: [
+        { role: 'system', content: messageClassificationPrompt },
+        ...classificationMessages,
+      ],
+    };
+
+    const classificationResponse = await openaiClient.chat.completions.create(
+      classificationOptions as ChatCompletionCreateParamsNonStreaming
+    );
+    const fullResponse =
+      classificationResponse.choices?.[0]?.message?.content?.trim() ?? '';
+
+    if (fullResponse && !['followUp', 'newTopic'].includes(fullResponse)) {
+      // eslint-disable-next-line no-console
+      console.log(
+        'fullResponse ======> not followUp or newTopic',
+        fullResponse
+      );
+    }
+
+    // if (!['followUp', 'newTopic'].includes(fullResponse)) {
+    //   throw new Error(`Unknown classification response: ${fullResponse}`);
+    // }
+
     if (fullResponse === 'newTopic') {
       const newTopicOptions = optionsGenerator(messages, fullResponse);
       const newTopicStream = streamOpenAI(newTopicOptions);
       const optimizedQuery = await collectStream(newTopicStream);
-      console.log('optimizedQuery ======>', optimizedQuery);
 
       const embeddings = await embedBatch([optimizedQuery]);
 
@@ -146,16 +232,73 @@ export async function* generateContent(messages: ChatCompletionMessageParam[]) {
       return;
     } else if (fullResponse === 'followUp') {
       const followUpOptions = optionsGenerator(messages, fullResponse);
-      const followUpStream = streamOpenAI(followUpOptions);
+      const stream = (await openaiClient.chat.completions.create(
+        followUpOptions
+      )) as Stream<ChatCompletionChunk>;
 
-      for await (const chunk of followUpStream) {
-         console.log('followUp chunk:', chunk);
-        yield JSON.stringify({ type: 'status', results: chunk });
+      let fullFollowResponse = '';
+
+      for await (const chunk of stream) {
+        const content = chunk?.choices[0]?.delta?.content || '';
+        if (content) {
+          fullFollowResponse += content;
+        }
       }
 
-      return;
-    } else {
-      throw new Error(`Unknown classification response: ${fullResponse}`);
+      const jsonMatches = fullFollowResponse.match(/\{.*?\}(?=\{|\s*$)/gs);
+
+      if (jsonMatches) {
+        const jsonStringResponse = checkIsValidJsonType(jsonMatches);
+
+        if (jsonStringResponse.type === 'articles') {
+          yield* yieldStatus('Preparing articles...');
+
+          await new Promise((resolve) => setTimeout(resolve, 700));
+
+          yield JSON.stringify(jsonStringResponse);
+          return;
+        } else {
+          fullFollowResponse = jsonStringResponse;
+        }
+      }
+
+      if (isAnswerInsufficient(fullFollowResponse) === false) {
+        for await (const token of streamTextTokens(
+          fullFollowResponse.trim(),
+          50
+        )) {
+          yield JSON.stringify({ type: 'status', results: token });
+        }
+        return;
+      } else {
+        const recentMessages = messages.slice(-1);
+
+        // Flatten into a string
+        const conversationContext = recentMessages
+          .map((msg) => {
+            return `${msg.role.toUpperCase()}: ${msg.content}`;
+          })
+          .join('\n');
+
+        const response = await openaiClient.responses.create({
+          model: 'gpt-4.1',
+          tools: [{ type: 'web_search_preview' }],
+          input: conversationContext,
+        });
+
+        // const messageOutput = response.output.find(
+        //   (item) => item.type === 'message'
+        // );
+
+        // console.log('messageOutput ======>', messageOutput?.content);
+
+        for await (const token of streamTextTokens(
+          response.output_text.trim(),
+          50
+        )) {
+          yield JSON.stringify({ type: 'status', results: token });
+        }
+      }
     }
   } catch (error) {
     throw error instanceof Error

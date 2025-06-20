@@ -13,11 +13,23 @@ import {
 
 import type {
   ChatCompletionChunk,
+  ChatCompletionContentPart,
+  ChatCompletionContentPartRefusal,
+  ChatCompletionContentPartText,
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
 } from 'openai/resources/index.mjs';
 import type { Stream } from 'openai/streaming.mjs';
+import { extractJsonFromContent } from '../helpers/parseMessages';
+
+type PreviousAssistantMessage =
+  | string
+  | (ChatCompletionContentPartText | ChatCompletionContentPartRefusal)[]
+  | null
+  | undefined;
+
+type PreviousUserMessage = string | ChatCompletionContentPart[];
 
 function isAnswerInsufficient(response: string): boolean {
   const vaguePhrases = [
@@ -102,31 +114,49 @@ async function collectStream(stream: AsyncGenerator<string>): Promise<string> {
 }
 
 function buildClassificationMessages(
-  conversation: ChatCompletionMessageParam[]
+  fullConversation: ChatCompletionMessageParam[]
 ): ChatCompletionMessageParam[] {
-  const relevantMessages: ChatCompletionMessageParam[] = [];
+  // Special case: first message
+  if (fullConversation.length === 1 && fullConversation[0].role === 'user') {
+    return [
+      {
+        role: 'user',
+        content: 'This is the first message in the conversation.',
+      },
+    ];
+  }
 
-  // Walk backwards through conversation to get last assistant-user pair
-  for (let i = conversation.length - 1; i >= 0; i--) {
-    const m = conversation[i];
-    relevantMessages.unshift(m);
+  // Find last assistant message and its preceding user message
+  let previousUserMessage: PreviousUserMessage = '';
+  let previousAssistantMessage: PreviousAssistantMessage = '';
+  let currentUserMessage: PreviousUserMessage = '';
 
-    // Stop when we see assistant followed by user — i.e. 1 full exchange
-    if (m.role === 'assistant') {
-      if (i > 0 && conversation[i - 1]?.role === 'user') {
-        relevantMessages.unshift(conversation[i - 1]);
-        break;
-      }
+  for (let i = fullConversation.length - 1; i >= 0; i--) {
+    const msg = fullConversation[i];
+    if (msg.role === 'user' && !currentUserMessage) {
+      currentUserMessage = msg.content;
+    } else if (msg.role === 'assistant' && !previousAssistantMessage) {
+      previousAssistantMessage = msg.content;
+    } else if (
+      msg.role === 'user' &&
+      previousAssistantMessage &&
+      !previousUserMessage
+    ) {
+      previousUserMessage = msg.content;
+      break;
     }
   }
 
-  // If no assistant found (only initial user message), fallback to last 1-2 user messages
-  if (!relevantMessages.some((m) => m.role === 'assistant')) {
-    const userMessages = conversation.filter((m) => m.role === 'user');
-    return userMessages.slice(-2);
-  }
+  const injection = `
+    Conversation History:
+    Previous: ${previousUserMessage}
+    Assistant: ${previousAssistantMessage}
+    User: ${currentUserMessage}
 
-  return relevantMessages;
+    Classify as:
+  `.trim();
+
+  return [{ role: 'user', content: injection }];
 }
 
 export async function* generateContent(messages: ChatCompletionMessageParam[]) {
@@ -134,6 +164,7 @@ export async function* generateContent(messages: ChatCompletionMessageParam[]) {
     yield* yieldStatus('Analyzing your query...');
 
     const classificationMessages = buildClassificationMessages(messages);
+    console.log('classificationMessages ======>', classificationMessages);
 
     const classificationOptions = {
       model: 'gpt-3.5-turbo',
@@ -141,6 +172,8 @@ export async function* generateContent(messages: ChatCompletionMessageParam[]) {
         { role: 'system', content: messageClassificationPrompt },
         ...classificationMessages,
       ],
+      temperature: 0, // making to make the response more deterministic
+      max_tokens: 10,
     };
 
     const classificationResponse = await openaiClient.chat.completions.create(
@@ -150,16 +183,35 @@ export async function* generateContent(messages: ChatCompletionMessageParam[]) {
       classificationResponse.choices?.[0]?.message?.content?.trim() ?? '';
 
     if (fullResponse && !['followUp', 'newTopic'].includes(fullResponse)) {
-      // eslint-disable-next-line no-console
+      const recentMessages = messages.slice(-1);
+
+      // Flatten into a string
+      const conversationContext = recentMessages
+        .map((msg) => {
+          return `${msg.role.toUpperCase()}: ${msg.content}`;
+        })
+        .join('\n');
+
+      const response = await openaiClient.responses.create({
+        model: 'gpt-4.1',
+        tools: [{ type: 'web_search_preview' }],
+        input: conversationContext,
+      });
+
+      for await (const token of streamTextTokens(
+        response.output_text.trim(),
+        50
+      )) {
+        yield JSON.stringify({ type: 'status', results: token });
+      }
+    }
+
+    if (!['followUp', 'newTopic'].includes(fullResponse)) {
       console.log(
         'fullResponse ======> not followUp or newTopic',
         fullResponse
       );
     }
-
-    // if (!['followUp', 'newTopic'].includes(fullResponse)) {
-    //   throw new Error(`Unknown classification response: ${fullResponse}`);
-    // }
 
     if (fullResponse === 'newTopic') {
       const newTopicOptions = optionsGenerator(messages, fullResponse);
